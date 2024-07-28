@@ -67,6 +67,8 @@ const Omnibar = () => {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               disabled={!canSendMessage}
+              minLength={2}
+              required
             />
             <button type="submit" className="mx-2 flex size-12 items-center justify-center rounded-full bg-[#ABC8FA]">
               <FaArrowRight size={20} />

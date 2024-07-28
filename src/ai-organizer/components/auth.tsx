@@ -11,7 +11,7 @@ const Auth = () => {
   const [user, setUser] = useAtom(userAtom);
 
   const handleSignIn = async () => {
-    const user = await signInWithEmailAndPassword('hasebok3@gmail.com', 'Passw0rd');
+    const user = await signInWithEmailAndPassword('hasebok4@gmail.com', 'Passw0rd');
     if (user) {
       console.log(`User ${user.uid} signined`);
       setUser(user);
@@ -20,7 +20,7 @@ const Auth = () => {
   };
 
   const handleSignUp = async () => {
-    const user = await createUserWithEmailAndPassword('hasebok3@gmail.com', 'Passw0rd');
+    const user = await createUserWithEmailAndPassword('hasebok4@gmail.com', 'Passw0rd');
     if (user) {
       console.log(`User ${user.uid} created`);
       setUser(user);

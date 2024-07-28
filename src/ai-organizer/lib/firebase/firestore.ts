@@ -101,6 +101,7 @@ export type Message = {
   loading: boolean;
   ragFileIds: string[];
   role: 'user' | 'model';
+  status: 'success' | 'failed';
   createdAt: Timestamp;
 };
 
@@ -136,6 +137,7 @@ export const sendChatMessage = async (uid: string, notebookId: string, content: 
     loading: false,
     ragFileIds: ragFileIds,
     role: 'user',
+    status: 'success',
     createdAt: serverTimestamp()
   });
 };
@@ -225,7 +227,7 @@ export const updateNotebookTitle = async (uid: string, notebookId: string, title
 
 export const addUser = async (uid: string, email: string): Promise<void> => {
   try {
-    const docRef = await setDoc(doc(db, 'users', uid), {
+    await setDoc(doc(db, 'users', uid), {
       email: email,
       createdAt: serverTimestamp()
     });
