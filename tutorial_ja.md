@@ -51,7 +51,7 @@
 ### **1. チュートリアル資材があるディレクトリに移動する**
 
 ```bash
-cd ~/next-tokyo-assets/2024/genai_application_development_patterns
+cd ~/next-tokyo-assets/2024/genai-app-patterns
 ```
 
 ### **2. チュートリアルを開く**
@@ -81,6 +81,8 @@ gcloud services enable \
   firebasestorage.googleapis.com
 ```
 
+`Cloud Shell の承認` が表示された場合は、`承認` をクリックします。
+
 **GUI**: [API ライブラリ](https://console.cloud.google.com/apis/library)
 
 <walkthrough-footnote>必要な機能が使えるようになりました。次に Firebase の設定方法を学びます。</walkthrough-footnote>
@@ -88,10 +90,6 @@ gcloud services enable \
 ## **Firebase プロジェクトの設定**
 
 AI organizer では Firebase の機能をフル活用し、リアルタイム性の高い UI を構築しています。
-
-- [Firebase Authentication](https://firebase.google.com/docs/auth): 認証管理
-- [Cloud Firestore](https://firebase.google.com/docs/firestore): メタデータ用データストア
-- [Cloud Storage for Firebase](https://firebase.google.com/docs/storage): ファイル保存用ストレージ
 
 ### **1. Firebase プロジェクトの有効化**
 
@@ -256,7 +254,7 @@ gcloud run deploy ai-organizer \
 
 ### **1. サービスアカウントの作成**
 
-このサービス用のアカウントを作成します。
+GenAI backend 用のアカウントを作成します。
 
 ```bash
 gcloud iam service-accounts create genai-backend-sa
@@ -321,6 +319,10 @@ gcloud run services add-iam-policy-binding genai-backend \
 ```
 
 ### **2. Eventarc トリガーの作成**
+
+ここでは本ステップ上部に記載している 4 つのトリガーをまとめて作成します。
+
+各コマンドのポイントは、**Firestore のどのようなデータ**に対して、**どのような更新**が行われたときに、**どの処理 (Cloud Run) を呼ぶのか**がオプションで設定されています。
 
 ```bash
 gcloud eventarc triggers create genai-backend-add-user \
@@ -397,8 +399,8 @@ gcloud pubsub topics add-iam-policy-binding genai-backend-dead-letter \
   --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com" \
   --role="roles/pubsub.publisher"
 SUBSCRIPTIONS=$(gcloud pubsub subscriptions list --format json | jq -r '.[].name')
-for SUBSCRIPTION in $SUBSCRIPTIONS; do
-  gcloud pubsub subscriptions add-iam-policy-binding $SUBSCRIPTION \
+for SUBSCRIPTION in $SUBSCRIPTIONS
+do gcloud pubsub subscriptions add-iam-policy-binding $SUBSCRIPTION \
     --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com" \
     --role="roles/pubsub.subscriber"
 done
@@ -408,8 +410,8 @@ done
 
 ```bash
 SUBSCRIPTIONS=$(gcloud pubsub subscriptions list --format json | jq -r '.[].name')
-for SUBSCRIPTION in $SUBSCRIPTIONS; do
-  gcloud pubsub subscriptions update $SUBSCRIPTION \
+for SUBSCRIPTION in $SUBSCRIPTIONS
+do gcloud pubsub subscriptions update $SUBSCRIPTION \
     --ack-deadline 300 \
     --dead-letter-topic genai-backend-dead-letter
 done
@@ -430,16 +432,16 @@ RAG は一般的に大きくデータを準備する前処理と、質問への�
 1. エンべディング化
 1. データのインデックス化
 
-上記の一連の手続きがソースコードでは<walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="113" endLine="119" startCharacterOffset="4" endCharacterOffset="5">こちら</walkthrough-editor-select-line>に該当します。
+上記の一連の手続きがソースコードでは<walkthrough-editor-select-line filePath="./next-tokyo-assets/2024/genai-app-patterns/src/genai-backend/main.py" startLine="113" endLine="119" startCharacterOffset="4" endCharacterOffset="5">こちら</walkthrough-editor-select-line>に該当します。
 
 質問への回答生成は以下の手順で行われ、ソースコードの該当箇所を示します。
 
-1. <walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="171" endLine="184" startCharacterOffset="4" endCharacterOffset="5">質問に関連するデータをインデックスから取得</walkthrough-editor-select-line>
-1. <walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="186" endLine="190" startCharacterOffset="4" endCharacterOffset="5">インデックスから取得したデータと質問を合わせて回答を生成</walkthrough-editor-select-line>
+1. <walkthrough-editor-select-line filePath="./next-tokyo-assets/2024/genai-app-patterns/src/genai-backend/main.py" startLine="171" endLine="184" startCharacterOffset="4" endCharacterOffset="5">質問に関連するデータをインデックスから取得</walkthrough-editor-select-line>
+1. <walkthrough-editor-select-line filePath="./next-tokyo-assets/2024/genai-app-patterns/src/genai-backend/main.py" startLine="186" endLine="190" startCharacterOffset="4" endCharacterOffset="5">インデックスから取得したデータと質問を合わせて回答を生成</walkthrough-editor-select-line>
 
 ## **マルチターンの質問回答**
 
-過去の質問内容、回答内容を踏まえた質問回答 (マルチターンの質問回答) を生成するには、生成 AI に対して現在の質問に加えて、今までのやり取りも合わせて送る必要があります。
+過去の質問内容、回答内容を踏まえた質問回答 (マルチターンの質問回答) を生成するには、**生成 AI に対して現在の質問に加えて、今までのやり取りも合わせて送る**必要があります。
 
 つまり生成 AI は今までのやり取りを記憶しているわけではなく、プログラム側で対応が必要になります。
 
@@ -447,14 +449,16 @@ RAG は一般的に大きくデータを準備する前処理と、質問への�
 
 具体的な処理部分を以下に示します。
 
-- <walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="192" endLine="198" startCharacterOffset="4" endCharacterOffset="5">過去の履歴を取得</walkthrough-editor-select-line>
-- <walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="206" endLine="206" startCharacterOffset="8" endCharacterOffset="65">過去の履歴を含め質問を送信</walkthrough-editor-select-line>
+- <walkthrough-editor-select-line filePath="./next-tokyo-assets/2024/genai-app-patterns/src/genai-backend/main.py" startLine="192" endLine="198" startCharacterOffset="4" endCharacterOffset="5">過去の履歴を取得</walkthrough-editor-select-line>
+- <walkthrough-editor-select-line filePath="./next-tokyo-assets/2024/genai-app-patterns/src/genai-backend/main.py" startLine="206" endLine="206" startCharacterOffset="8" endCharacterOffset="65">過去の履歴を含め質問を送信</walkthrough-editor-select-line>
 
 ## **AI organizer の試用**
 
 ### **1. アプリケーションへブラウザからアクセス**
 
-以下コマンドを実行して出力された `Service URL` から URL をクリックすると、ブラウザのタブが開きログイン画面が起動します。
+エディタが開いている場合は、`ターミナルを開く` をクリックしターミナルを開きます。
+
+以下コマンドを実行して出力された URL をクリックすると、ブラウザのタブが開きログイン画面が起動します。
 
 ```bash
 gcloud run services describe ai-organizer --region asia-northeast1 --format json | jq -r '.status.address.url'
@@ -462,39 +466,52 @@ gcloud run services describe ai-organizer --region asia-northeast1 --format json
 
 ### **2. 新規ユーザーの登録**
 
-最下部の `アカウントを登録する` をクリックし、ユーザー情報を入力、`アカウントを登録する` をクリックします。
+最下部の `アカウントを作成する場合はこちら` をクリックし、ユーザー情報を入力、`アカウントを登録する` をクリックします。
+
+メールアドレス、パスワードは存在しないものでも問題ありません。
 
 うまく登録ができると、ノートブック管理画面に遷移します。ユーザーの初期化のため少し待ち時間があります。
 
 ### **3. 新規ノートブックの作成**
 
-- `新規` ボタンから新しいフォルダの作成、ローカルにあるファイルのアップロードが可能です。
-- 右上の `アバター` マークをクリックするとログアウトが可能です。
-- 上部の検索バーから、ファイル名、フォルダ名の検索が可能です。完全一致検索となっていることに注意してください。
-- フォルダは階層化でき、ファイルはアップロード後クリックすると、別のタブで表示することができます。
+- `新しいノートブック` カードをクリックします。そうすると新しくノートブックが作成され、詳細ページに遷移します。
 
-### **4. 別アカウントでの動作を確認**
+### **4. ソースの追加**
 
-一度ログアウトし、別のアカウントを作成してサインインしてみましょう。
+- 左メニューの中の `ソース` の右にある ＋ のようなアイコンをクリックします。
+- 手持ちの PDF、または以下のサンプル PDF をダウンロードし、アップロードします。
+- 少し待つと読み込み処理が完了し、ロード中マークが消えます。
 
-先に作成したアカウントとはファイル、フォルダが分離されていることがわかります。
-
+- [Cloud Run](https://storage.googleapis.com/genai-handson-20230929/CloudRun.pdf)
+- [Cloud SQL](https://storage.googleapis.com/genai-handson-20230929/CloudSQL.pdf)
 - [Cloud Storage for Firebase](https://storage.googleapis.com/genai-handson-20230929/CloudStorageforFirebase.pdf)
 - [Firebase Authentication](https://storage.googleapis.com/genai-handson-20230929/FirebaseAuthentication.pdf)
 - [Firestore](https://storage.googleapis.com/genai-handson-20230929/Firestore.pdf)
 - [Palm API と LangChain の連携](https://storage.googleapis.com/genai-handson-20230929/PalmAPIAndLangChain.pdf)
 
-### **2. GenAI App への質問**
+### **5. ソースに関連する質問**
 
-上部検索バー上の右の方のアイコンをクリックすると、ファイル/フォルダ名検索と GenAI App への質問機能を切り替えられるようになっています。
+- アップロードしたソースのチェックボックスをチェックし、最下部の質問バーから質問を入力します。
 
-GenAI App への質問に切り替え、先程アップロードしたファイルの情報に関連する質問を投げてみましょう。
+うまくいくと、アップロードしたファイルの内容をベースに回答が生成されます。
 
-無事、回答が返ってくれば成功です。
+### **6. 気に入った回答を保存する**
 
-### **3. 色々試してみる**
+気に入った回答の右上にあるピンボタンをクリックすると、メモとして保存することが可能です。
 
-様々な PDF をアップロードして回答がどのように変わるか試してみましょう。
+### **7. 色々活用してみる**
+
+手持ちの PDF などをアップロードし、回答に利用したい PDF を選択、質問を繰り返してどのような回答になるかを体験してみてください。
+
+### **8. ログアウトする**
+
+画面の右上のアイコン (扉からでていくマーク) をクリックするとログアウトが可能です。
+
+### **9. 新規ユーザーを作成し、データが別管理になっていることを確認する**
+
+新しいユーザーを作成し、動作を確認してみてください。
+
+ユーザーごとにデータが分けられて管理されており、先程アップロードしたデータは見えないことがわかります。
 
 ## **Congratulations!**
 
