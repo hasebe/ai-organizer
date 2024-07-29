@@ -1,7 +1,14 @@
 #!/bin/bash
 
-CONFIG_FILE=firebase-config.json
-ENV_PATH=../src/knowledge-drive
+APP_ID=$(firebase -j apps:list -P $GOOGLE_CLOUD_PROJECT | jq '.result[] | select(.displayName == "streamchat")' | jq -r '.appId')
+TMP_FILE=firebaseConfig.json
+ENV_PATH=./src/knowledge-drive
+
+if [ ! -z ${1} ]; then
+    ENV_PATH=$1
+fi
+
+firebase -j apps:sdkconfig -P $GOOGLE_CLOUD_PROJECT WEB $APP_ID | jq '.result.sdkConfig' > $TMP_FILE
 
 function reset_configuration() {
     env_key=$1
@@ -12,7 +19,7 @@ function update_env() {
     json_key=$1
     env_key=$2
     reset_configuration $env_key
-    json_value=$(cat $CONFIG_FILE | jq ".$json_key")
+    json_value=$(cat firebaseConfig.json | jq ".$json_key")
     sed -i -e "s/$env_key=$/$env_key=$json_value/g" $ENV_PATH/.env
 }
 
@@ -26,3 +33,5 @@ update_env messagingSenderId NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 echo "Updated configuration..."
 echo 
 cat $ENV_PATH/.env
+
+rm -rf $TMP_FILE

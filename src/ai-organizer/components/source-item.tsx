@@ -128,7 +128,7 @@ const SourceItem = ({ uid, notebookId, id, name, selected, status }: SourceItemP
                   onChange={(event) => setEditableName(event.target.value)}
                   className="mb-4 w-full rounded-sm border border-black px-6 py-5"
                   minLength={3}
-                  maxLength={20}
+                  maxLength={50}
                   required
                 />
                 <div className="flex h-[52px] items-center justify-end px-2 py-[2px]">

@@ -62,16 +62,6 @@ teachme tutorial_ja.md
 
 途中まで進めていたチュートリアルのページまで `Next` ボタンを押し、進めてください。
 
-## **環境準備**
-
-<walkthrough-tutorial-duration duration=10></walkthrough-tutorial-duration>
-
-最初に、ハンズオンを進めるための環境準備を行います。
-
-下記の設定を進めていきます。
-
-- Google Cloud 機能（API）有効化設定
-
 ## **Google Cloud 環境設定**
 
 Google Cloud では利用したい機能（API）ごとに、有効化を行う必要があります。
@@ -97,7 +87,11 @@ gcloud services enable \
 
 ## **Firebase プロジェクトの設定**
 
-AI organizer では、ユーザー情報は [Firebase Authentication](https://firebase.google.com/docs/auth)、アプリケーションのメタデータは [Cloud Firestore](https://firebase.google.com/docs/firestore)、 そしてファイルの格納場所として [Cloud Storage for Firebase](https://firebase.google.com/docs/storage) を活用します。Firebase の機能を活用することで、リアルタイム性の高い Web アプリケーションを開発することができます。
+AI organizer では Firebase の機能をフル活用し、リアルタイム性の高い UI を構築しています。
+
+- [Firebase Authentication](https://firebase.google.com/docs/auth): 認証管理
+- [Cloud Firestore](https://firebase.google.com/docs/firestore): メタデータ用データストア
+- [Cloud Storage for Firebase](https://firebase.google.com/docs/storage): ファイル保存用ストレージ
 
 ### **1. Firebase プロジェクトの有効化**
 
@@ -125,23 +119,15 @@ AI organizer では、ユーザー情報は [Firebase Authentication](https://fi
 
 本ハンズオンではいくつかの設定を作成済みの Terraform スクリプトを利用します。
 
-そのために Terraform 実行環境を初期化します。
+そのために **Terraform の実行環境を初期化**します。
 
 ```bash
 (cd tf/ && terraform init)
 ```
 
-```bash
-(cd tf/; terraform init && terraform apply -var="project_id=$GOOGLE_CLOUD_PROJECT")
-```
-
-コマンドを実行した場合は **ステップ 12** に進んでください。
-
 ## **Firebase アプリケーションの設定**
 
 ### **1. Firebase アプリケーションの作成**
-
-**CLI** から実行します。
 
 ```bash
 firebase apps:create -P $GOOGLE_CLOUD_PROJECT WEB ai-organizer
@@ -157,23 +143,63 @@ firebase apps:create -P $GOOGLE_CLOUD_PROJECT WEB ai-organizer
 
 ## **Firebase Authentication の設定**
 
+認証に関わる機能全般を Firebase Authentication を用いて実装します。
+
+この機能を利用することで、メールアドレスとパスワードを利用した基本的な認証機能から、Google、Facebook といったソーシャルログインを簡単に実現することができます。
+
+今回は、簡単に使うために**メールアドレスとパスワードの認証**を利用します。
+
 ```bash
 (cd tf/ && terraform apply -target=google_identity_platform_config.default -var="project_id=$GOOGLE_CLOUD_PROJECT" -auto-approve)
 ```
 
 ## **Firestore データベース、セキュリティルールの設定**
 
+AI organizer で利用する各種メタデータの保存先として　 Firestore を利用します。
+
+Firestore は NoSQL データベースの一つで、データをドキュメントの形で保存します。
+
+また Firestore は**クライアント (今回の場合は利用者それぞれのブラウザ) から直接データベースを操作できる**という大きな特徴があり、今回もその機能を活用し、リアルタイム性の高い UI を実現しています。
+
+- ユーザーの環境が準備できたら UI に反映
+- ファイルがアップロードされたら UI に反映
+
 ```bash
 (cd tf/ && terraform apply -target=google_firestore_database.default -target=google_firebaserules_ruleset.firestore -target=google_firebaserules_release.firestore -var="project_id=$GOOGLE_CLOUD_PROJECT" -auto-approve)
 ```
 
+### セキュリティについて
+
+クライアントから直接操作ができるということは、正しいセキュリティの設定をしておかないと、誰でもデータの閲覧、上書きができてしまうということになります。
+
+Cloud Firestore では**セキュリティルール**という機能を使い、以下のようにセキュリティを高めることができます。
+
+- Firebase Authentication でログイン済みのユーザーのみデータを閲覧
+- 自分のデータのみ書き込み可能
+
+今回は Terraform スクリプトの中で最低限のセキュリティルールを適用しています。
+
 ## **Cloud Storage for Firebase、セキュリティルールの設定**
+
+AI organizer では生成 AI に回答させる際のソースデータとしてファイルをアップロードができます。
+
+アップロードしたファイルは Cloud Storage for Firebase に保存されます。
+
+Firestore と同様に Cloud Storage for Firebase では**クライアントから直接ファイルを Cloud Storage にアップロード**できます。
 
 ```bash
 (cd tf/ && terraform apply -target=google_app_engine_application.default -target=google_firebase_storage_bucket.default -target=google_firebaserules_ruleset.storage -target=google_firebaserules_release.storage -var="project_id=$GOOGLE_CLOUD_PROJECT" -auto-approve)
 ```
 
-## **AI organizer をデプロイするための事前設定**
+### セキュリティについて
+
+セキュリティについても Firestore と同様、クライアントから直接操作する関係上、設定が必須となります。
+
+Cloud Storage for Firebase でも**セキュリティルール**を利用してセキュリティを確保します。また Terraform で設定済みです。
+
+今回は Firebase Authentication でログインしたユーザーが、**Cloud Storage 上の自分専用のフォルダ配下にのみ書き込み、読み込みができる**ようにしています。
+
+## **AI organizer を Cloud Run にデプロイ**
 
 Cloud Run では様々な方法でデプロイが可能です。ここでは以下の方法でアプリケーションをデプロイします。
 
@@ -200,9 +226,9 @@ gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
   --role 'roles/iam.serviceAccountTokenCreator'
 ```
 
-## **AI organizer のデプロイ**
+### **3. AI organizer のデプロイ**
 
-Cloud Build でコンテナイメージを作成、作成したイメージを Cloud Run にデプロイします。
+Cloud Run にソースコードを 1 コマンドでデプロイします。
 
 ```bash
 gcloud run deploy ai-organizer \
@@ -213,7 +239,181 @@ gcloud run deploy ai-organizer \
   --quiet
 ```
 
-**注**: デプロイ完了まで 5 分程度かかります。
+**注**: デプロイ完了まで最大 10 分程度かかります。
+
+## **生成 AI 関連機能 (GenAI backend) の追加**
+
+生成 AI 関連の以下の処理を実行する GenAI backend をデプロイします。
+
+- ユーザーの追加をトリガーに、ユーザー個別の検索インデックス (Corpus) を作成
+- ファイルアップロードをトリガーに、ファイルをソースとしてインデックスに追加
+- ソースの削除をトリガーに、インデックスからソースを削除
+- ユーザーからの質問をトリガーに、インデックスを利用して回答を生成
+
+今回は、GenAI backend も個別の Cloud Run サービスでデプロイし、UI を担当する ai-organizer と連携させるようにします。
+
+## **GenAI backend のデプロイ**
+
+### **1. サービスアカウントの作成**
+
+このサービス用のアカウントを作成します。
+
+```bash
+gcloud iam service-accounts create genai-backend-sa
+```
+
+### **2. サービスアカウントへの権限追加**
+
+生成 AI 処理アプリケーションは Cloud SQL、Vertex AI などのサービスへのアクセス権限が必要です。
+
+```bash
+gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
+  --member serviceAccount:genai-backend-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+  --role roles/aiplatform.user
+gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
+  --member serviceAccount:genai-backend-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+  --role roles/storage.objectUser
+gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
+  --member=serviceAccount:genai-backend-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+  --role=roles/eventarc.eventReceiver
+gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
+  --member serviceAccount:genai-backend-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+  --role roles/datastore.user
+```
+
+### **3 GenAI backend のデプロイ**
+
+```bash
+gcloud run deploy genai-backend \
+  --source ./src/genai-backend \
+  --region asia-northeast1 \
+  --service-account genai-backend-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+  --set-env-vars=FLASK_PROJECT_ID=$GOOGLE_CLOUD_PROJECT \
+  --no-allow-unauthenticated
+```
+
+## **非同期処理 (Eventarc) の設定**
+
+AI organizer には生成 AI 関連の機能が入っていないため、アプリケーション全体として機能しない状態です。
+
+生成 AI 関連の処理は少し時間がかかるものが多いため、本ハンズオンでは生成 AI の処理を GenAI backend に切り出し、非同期で処理するようにします。
+
+また今回のアーキテクチャのポイントですが、**非同期の連携はサービス同士が直接連携する形ではなく、データストアへの操作をトリガーに連携**します。
+
+具体的には以下のような処理をトリガーに、次の処理が行われます。
+
+- ユーザー情報の作成 -> ユーザー個別の検索インデックス (Corpus) を作成
+- ファイルをアップロード、ファイルメタデータを作成 -> ファイルをソースとしてインデックスに追加
+- ファイルメタデータを削除待ち状態に変更 -> インデックスからソースを削除、元ファイルを Cloud Storage から削除
+- ユーザーからの質問を作成 -> 保存されている質問履歴を元に回答を生成
+
+### **1. 前準備**
+
+```bash
+SERVICE_ACCOUNT="$(gsutil kms serviceaccount -p $GOOGLE_CLOUD_PROJECT)"
+gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
+  --member="serviceAccount:${SERVICE_ACCOUNT}" \
+  --role='roles/pubsub.publisher'
+gcloud run services add-iam-policy-binding genai-backend \
+  --member="serviceAccount:genai-backend-sa@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com" \
+  --role='roles/run.invoker' \
+  --region asia-northeast1
+```
+
+### **2. Eventarc トリガーの作成**
+
+```bash
+gcloud eventarc triggers create genai-backend-add-user \
+  --location=asia-northeast1 \
+  --destination-run-service=genai-backend \
+  --destination-run-region=asia-northeast1 \
+  --event-filters="type=google.cloud.firestore.document.v1.created" \
+  --event-filters="database=(default)" \
+  --event-filters-path-pattern="document=users/{uid}" \
+  --service-account=genai-backend-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+  --event-data-content-type="application/protobuf" \
+  --destination-run-path="/add_user" && \
+gcloud eventarc triggers create genai-backend-add-source \
+  --location=asia-northeast1 \
+  --destination-run-service=genai-backend  \
+  --destination-run-region=asia-northeast1 \
+  --event-filters="type=google.cloud.firestore.document.v1.created" \
+  --event-filters="database=(default)" \
+  --event-filters-path-pattern="document=users/{uid}/notebooks/{notebookId}/sources/{sourceId}" \
+  --service-account=genai-backend-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+  --event-data-content-type="application/protobuf" \
+  --destination-run-path="/add_source" && \
+gcloud eventarc triggers create genai-backend-update-source \
+  --location=asia-northeast1 \
+  --destination-run-service=genai-backend \
+  --destination-run-region=asia-northeast1 \
+  --event-filters="type=google.cloud.firestore.document.v1.updated" \
+  --event-filters="database=(default)" \
+  --event-filters-path-pattern="document=users/{uid}/notebooks/{notebookId}/sources/{sourceId}" \
+  --service-account=genai-backend-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+  --event-data-content-type="application/protobuf" \
+  --destination-run-path="/update_source" && \
+gcloud eventarc triggers create genai-backend-question \
+  --location=asia-northeast1 \
+  --destination-run-service=genai-backend  \
+  --destination-run-region=asia-northeast1 \
+  --event-filters="type=google.cloud.firestore.document.v1.created" \
+  --event-filters="database=(default)" \
+  --event-filters-path-pattern="document=users/{uid}/notebooks/{notebookId}/chat/{messageId}" \
+  --service-account=genai-backend-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+  --event-data-content-type="application/protobuf" \
+  --destination-run-path="/question"
+```
+
+以下のようなエラーが出た場合は、少し待ってから再度コマンドを実行してください。
+
+```
+ERROR: (gcloud.eventarc.triggers.create) FAILED_PRECONDITION: Invalid resource state for "": Permission denied while using the Eventarc Service Agent.
+```
+
+## **非同期連携の設定**
+
+今の非同期連携では以下の 2 つの問題があります。
+
+- 各非同期処理が 10 秒以内に終わらないと、エラー扱いになりリトライしてしまう
+- リトライ回数に制限がなく、アプリケーションのバグなどで処理が失敗するとリトライされ続けてしまう＝リソースコストが上がり続けてしまう
+
+これを解決するために以下の設定を行います。
+
+- 各非同期処理の処理待ち時間を 300 秒 (5 分) に修正
+- 合計 5 回非同期の処理に失敗したら、リトライをやめる (デッドレタートピックに入れる)
+
+### **1. デッドレタートピックの作成**
+
+```bash
+gcloud pubsub topics create genai-backend-dead-letter
+```
+
+### **2. デッドレタートピック関連の権限設定**
+
+```bash
+PROJECT_NUMBER=$(gcloud projects describe $GOOGLE_CLOUD_PROJECT --format="value(projectNumber)")
+gcloud pubsub topics add-iam-policy-binding genai-backend-dead-letter \
+  --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com" \
+  --role="roles/pubsub.publisher"
+SUBSCRIPTIONS=$(gcloud pubsub subscriptions list --format json | jq -r '.[].name')
+for SUBSCRIPTION in $SUBSCRIPTIONS; do
+  gcloud pubsub subscriptions add-iam-policy-binding $SUBSCRIPTION \
+    --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com" \
+    --role="roles/pubsub.subscriber"
+done
+```
+
+### **3. デッドレタートピックの設定、サブスクリプションの確認応答時間の修正**
+
+```bash
+SUBSCRIPTIONS=$(gcloud pubsub subscriptions list --format json | jq -r '.[].name')
+for SUBSCRIPTION in $SUBSCRIPTIONS; do
+  gcloud pubsub subscriptions update $SUBSCRIPTION \
+    --ack-deadline 300 \
+    --dead-letter-topic genai-backend-dead-letter
+done
+```
 
 ## **AI organizer の試用**
 
@@ -240,181 +440,6 @@ gcloud run deploy ai-organizer \
 
 先に作成したアカウントとはファイル、フォルダが分離されていることがわかります。
 
-## **生成 AI を活用しアップロード済みファイルをベースにした回答生成機能 (GenAI App) の追加**
-
-AI organizer に、生成 AI を活用し質問文への回答を返す機能である GenAI App を追加します。
-
-今回は、GenAI App も個別の Cloud Run サービスでデプロイし、2 つのサービスを連携させるようにします。
-
-## **GenAI App のデプロイ**
-
-GenAI App もコンテナで Cloud Run で稼働させます。このアプリケーションは大きく以下の 2 つの機能を持っています。
-
-- PDF ファイルが Cloud Storage に置かれると、それをトリガーにファイルの取得、Embedding の生成、データベースへの格納
-- 質問文を受け取り、回答を生成して返す
-
-### **1. サービスアカウントの作成**
-
-このサービス用のアカウントを作成します。
-
-```bash
-gcloud iam service-accounts create genai-app
-```
-
-### **2. サービスアカウントへの権限追加**
-
-生成 AI 処理アプリケーションは Cloud SQL、Vertex AI などのサービスへのアクセス権限が必要です。
-
-```bash
-gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
-  --member serviceAccount:genai-app@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --role roles/cloudsql.client
-gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
-  --member serviceAccount:genai-app@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --role roles/aiplatform.user
-gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
-  --member serviceAccount:genai-app@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --role roles/storage.objectUser
-gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
-  --member=serviceAccount:genai-app@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --role=roles/eventarc.eventReceiver
-gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
-  --member serviceAccount:genai-app@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --role roles/datastore.user
-```
-
-### **3 GenAI App のビルド、デプロイ**
-
-```bash
-gcloud builds submit ./src/genai-app \
-  --tag asia-northeast1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/ai-organizer-repo/genai-app && \
-gcloud run deploy genai-app \
-  --image asia-northeast1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/ai-organizer-repo/genai-app \
-  --service-account genai-app@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --no-allow-unauthenticated \
-  --set-env-vars "PJID=$GOOGLE_CLOUD_PROJECT" \
-  --region asia-northeast1
-```
-
-## **Eventarc の設定**
-
-ユーザーがファイルをアップロードしたときに生成 AI アプリを呼び出すように、Eventarc の設定を行います。
-
-### **1. 前準備**
-
-```bash
-SERVICE_ACCOUNT="$(gsutil kms serviceaccount -p $GOOGLE_CLOUD_PROJECT)"
-gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
-  --member="serviceAccount:${SERVICE_ACCOUNT}" \
-  --role='roles/pubsub.publisher'
-gcloud run services add-iam-policy-binding genai-app \
-  --member="serviceAccount:genai-app@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com" \
-  --role='roles/run.invoker' \
-  --region asia-northeast1
-```
-
-### **2. Eventarc トリガーの作成**
-
-```bash
-gcloud eventarc triggers create genai-app \
-  --destination-run-service=genai-app \
-  --destination-run-region=asia-northeast1 \
-  --location=asia-northeast1 \
-  --event-filters="type=google.cloud.storage.object.v1.finalized" \
-  --event-filters="bucket=$GOOGLE_CLOUD_PROJECT.appspot.com" \
-  --service-account=genai-app@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --destination-run-path=/register_doc
-```
-
-以下のようなエラーが出た場合は、数分待ってから再度コマンドを実行してください。
-
-```
-ERROR: (gcloud.eventarc.triggers.create) FAILED_PRECONDITION: Invalid resource state for "": Permission denied while using the Eventarc Service Agent.
-```
-
-## **非同期連携の設定**
-
-今の非同期連携では以下の 2 つの問題があります。
-
-- PDF ファイルの処理が 10 秒以内に終わらないと、エラー扱いになりリトライしてしまう
-- リトライ回数に制限がなく、PDF ファイルの処理に失敗するとリトライされ続けてしまう＝リソースコストが上がり続けてしまう
-
-これを解決するために以下の設定を行います。
-
-- PDF ファイルの処理待ち時間を 300 秒 (5 分) に修正
-- 合計 5 回同じファイルの処理に失敗したら、リトライをやめる (デッドレタートピックに入れる)
-
-### **1. デッドレタートピックの作成**
-
-```bash
-gcloud pubsub topics create genai-app-dead-letter
-```
-
-### **2. デッドレタートピック関連の権限設定**
-
-```bash
-PROJECT_NUMBER=$(gcloud projects describe $GOOGLE_CLOUD_PROJECT --format="value(projectNumber)")
-SUBSCRIPTION=$(gcloud pubsub subscriptions list --format json | jq -r '.[].name')
-gcloud pubsub topics add-iam-policy-binding genai-app-dead-letter \
-  --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com" \
-  --role="roles/pubsub.publisher"
-gcloud pubsub subscriptions add-iam-policy-binding $SUBSCRIPTION \
-  --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com" \
-  --role="roles/pubsub.subscriber"
-```
-
-### **3. デッドレタートピックの設定、サブスクリプションの確認応答時間の修正**
-
-```bash
-SUBSCRIPTION=$(gcloud pubsub subscriptions list --format json | jq -r '.[].name')
-gcloud pubsub subscriptions update $SUBSCRIPTION \
-  --ack-deadline 300 \
-  --dead-letter-topic genai-app-dead-letter
-```
-
-## **AI organizer の更新**
-
-### **1. GenAI App API を呼び出す権限を付与**
-
-```bash
-gcloud run services add-iam-policy-binding genai-app \
-  --member=serviceAccount:ai-organizer@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --role=roles/run.invoker \
-  --region asia-northeast1
-```
-
-### **2. GenAI App との連携機能追加**
-
-GenAI App と連携するために、AI organizer を更新します。
-
-```bash
-git switch genai-app-integration
-```
-
-### **3. 連携機能のデプロイ**
-
-```bash
-GENAI_APP_URL=$(gcloud run services describe genai-app --region asia-northeast1 --format json | jq -r '.status.url')
-gcloud builds submit ./src/ai-organizer \
-  --tag asia-northeast1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/ai-organizer-repo/ai-organizer && \
-gcloud run deploy ai-organizer \
-  --image asia-northeast1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/ai-organizer-repo/ai-organizer \
-  --service-account ai-organizer@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --allow-unauthenticated \
-  --set-env-vars "SEARCH_HOST=$GENAI_APP_URL" \
-  --region asia-northeast1
-```
-
-## **連携機能の確認**
-
-### **1. ファイルのアップロード**
-
-GenAI App は PDF ファイルを読み取り、処理します。
-
-以下の中から学習させてみたい PDF をローカル PC にダウンロードし、AI organizer からアップロードしてください。
-
-- [Cloud Run](https://storage.googleapis.com/genai-handson-20230929/CloudRun.pdf)
-- [Cloud SQL](https://storage.googleapis.com/genai-handson-20230929/CloudSQL.pdf)
 - [Cloud Storage for Firebase](https://storage.googleapis.com/genai-handson-20230929/CloudStorageforFirebase.pdf)
 - [Firebase Authentication](https://storage.googleapis.com/genai-handson-20230929/FirebaseAuthentication.pdf)
 - [Firestore](https://storage.googleapis.com/genai-handson-20230929/Firestore.pdf)
@@ -432,10 +457,10 @@ GenAI App への質問に切り替え、先程アップロードしたファイ�
 
 様々な PDF をアップロードして回答がどのように変わるか試してみましょう。
 
-## **Congraturations!**
+## **Congratulations!**
 
 <walkthrough-conclusion-trophy></walkthrough-conclusion-trophy>
 
-これにて生成 AI を用いたアプリケーション開発ハンズオンが完了です。
+これにて**丸わかり！生成 AI アプリケーション開発パターン**は完了です。
 
 Qwiklabs に戻り、`ラボを終了` ボタンをクリックし、ハンズオンを終了します。
