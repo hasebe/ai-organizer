@@ -22,6 +22,7 @@
     "nanoid": "^5.0.7",
     "nanoid-dictionary": "^4.3.0",
     "next": "14.2.5",
+    "next-themes": "^0.3.0",
     "react": "^18",
     "react-dom": "^18",
     "react-icons": "^5.2.1",
@@ -29,6 +30,7 @@
     "react-spinners": "^0.14.1",
     "remark-gfm": "^4.0.0",
     "server-only": "^0.0.1",
+    "sonner": "^1.5.0",
     "tailwind-merge": "^2.4.0",
     "tailwindcss-animate": "^1.0.7"
   },

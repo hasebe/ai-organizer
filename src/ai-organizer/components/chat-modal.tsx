@@ -26,6 +26,7 @@ const ChatModal = () => {
     });
 
     return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, notebookId]);
 
   const clearMessages = async () => {

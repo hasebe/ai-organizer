@@ -1,31 +1,34 @@
 'use client';
 
 import { useAtom } from 'jotai';
+import { toast } from 'sonner';
 
 import { createSession, removeSession } from '@/lib/actions/auth';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from '@/lib/firebase/auth';
-import { addUser } from '@/lib/firebase/firestore';
+import { addUser, getUserByUid } from '@/lib/firebase/firestore';
 import { userAtom } from '@/lib/state';
 
 const Auth = () => {
   const [user, setUser] = useAtom(userAtom);
 
   const handleSignIn = async () => {
-    const user = await signInWithEmailAndPassword('hasebok4@gmail.com', 'Passw0rd');
+    const user = await signInWithEmailAndPassword('hasebok6@gmail.com', 'Passw0rd');
     if (user) {
       console.log(`User ${user.uid} signined`);
-      setUser(user);
+      const userInFirestore = await getUserByUid(user.uid);
+      setUser(userInFirestore);
       await createSession(user.uid);
     }
   };
 
   const handleSignUp = async () => {
-    const user = await createUserWithEmailAndPassword('hasebok4@gmail.com', 'Passw0rd');
+    const user = await createUserWithEmailAndPassword('hasebok6@gmail.com', 'Passw0rd');
     if (user) {
       console.log(`User ${user.uid} created`);
-      setUser(user);
       await createSession(user.uid);
       await addUser(user.uid, user.email as string);
+      const userInFirestore = await getUserByUid(user.uid);
+      setUser(userInFirestore);
     }
   };
 
@@ -43,6 +46,14 @@ const Auth = () => {
         </button>
         <button className="rounded bg-primary px-4 py-2 font-bold text-white" onClick={handleSignIn}>
           Sign in
+        </button>
+        <button
+          className="rounded bg-primary px-4 py-2 font-bold text-white"
+          onClick={() => {
+            toast.success('success');
+          }}
+        >
+          Toast!!!
         </button>
       </div>
     );

@@ -1,6 +1,7 @@
-import { User } from 'firebase/auth';
+// import { User } from 'firebase/auth';
 import { atom } from 'jotai';
 
+import { User } from '@/lib/firebase/firestore';
 import { Message, Note, Notebook, Source } from '@/lib/firebase/firestore';
 
 const sidebarOpenAtom = atom(true);

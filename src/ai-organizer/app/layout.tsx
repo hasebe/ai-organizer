@@ -4,6 +4,7 @@ import { Provider } from 'jotai';
 import type { Metadata } from 'next';
 import { Inter as FontSans } from 'next/font/google';
 
+import { Toaster } from '@/components/ui/sonner';
 import { cn } from '@/lib/utils';
 
 const fontSans = FontSans({
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={cn('min-h-screen bg-background font-sans antialiased', fontSans.variable)}>
         <Provider>{children}</Provider>
+        <Toaster position="top-center" duration={2000} richColors toastOptions={{}} theme="light" />
       </body>
     </html>
   );

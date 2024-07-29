@@ -1,30 +1,26 @@
 'use client';
 
 import { useSetAtom } from 'jotai';
+import { useRouter } from 'next/navigation';
+import { VscSignOut } from 'react-icons/vsc';
 
 import { removeSession } from '@/lib/actions/auth';
+import { ROOT_ROUTE } from '@/lib/constants';
 import { signOut } from '@/lib/firebase/auth';
-import { auth } from '@/lib/firebase/client-app';
 import { userAtom } from '@/lib/state';
 
 const SignOutAvatar = () => {
-  const user = auth.currentUser;
   const setUser = useSetAtom(userAtom);
+  const router = useRouter();
 
   const handleClick = async () => {
     await signOut();
     setUser(null);
     await removeSession();
+    router.replace(ROOT_ROUTE);
   };
 
-  return (
-    <p
-      className="ml-3 flex size-9 min-w-9 cursor-pointer items-center justify-center rounded-full bg-purple-600 text-lg font-bold text-white"
-      onClick={handleClick}
-    >
-      {user && user.email?.at(2)}
-    </p>
-  );
+  return <VscSignOut size={28} onClick={handleClick} className="mx-2 cursor-pointer" />;
 };
 
 export default SignOutAvatar;

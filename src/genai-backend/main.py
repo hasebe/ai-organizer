@@ -1,7 +1,6 @@
 import os
 from logging.config import dictConfig
 
-#from google.cloud.firestore_v1.base_query import FieldFilter
 import vertexai
 from cloudevents.http import from_http
 from flask import Flask, request
@@ -81,7 +80,7 @@ def add_user():
     
     db = firestore.Client()
     doc_ref = db.collection(users).document(uid)
-    doc_ref.update({"corpusName": rag_corpus.name})
+    doc_ref.update({"corpusName": rag_corpus.name, "status": "created"})
 
     app.logger.info(f"{event_id}: finished adding a user: {uid}")
 

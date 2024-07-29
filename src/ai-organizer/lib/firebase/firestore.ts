@@ -225,13 +225,45 @@ export const updateNotebookTitle = async (uid: string, notebookId: string, title
   });
 };
 
+export type User = {
+  id: string;
+  email: string;
+  createdAt: Timestamp;
+  status: 'creating' | 'created';
+  corpusName: string;
+};
+
+type GetUserSnapshotCallback = (user: User) => void;
+
+export const getUserSnapshot = (uid: string, cb: GetUserSnapshotCallback) => {
+  const q = doc(db, 'users', uid);
+  const unsubscribe = onSnapshot(q, (doc) => {
+    const user = {
+      id: doc.id,
+      ...doc.data()
+    } as User;
+    cb(user);
+  });
+
+  return unsubscribe;
+};
+
 export const addUser = async (uid: string, email: string): Promise<void> => {
   try {
     await setDoc(doc(db, 'users', uid), {
       email: email,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      status: 'creating'
     });
   } catch (error) {
     console.error('Error adding document: ', error);
   }
+};
+
+export const getUserByUid = async (uid: string): Promise<User> => {
+  const docRef = await getDoc(doc(db, 'users', uid));
+  return {
+    id: docRef.id,
+    ...docRef.data()
+  } as User;
 };
