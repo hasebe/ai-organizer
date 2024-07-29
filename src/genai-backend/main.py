@@ -198,9 +198,6 @@ def question():
         .stream()
     )
 
-    # raw_contents[-1] = {"role": raw_contents[-1]["role"], "content": raw_contents[-1]["content"] + "Please output the result in markdown format for easy view"}
-    # contents = [Content(role=chat_message["role"], parts=[Part.from_text(chat_message["content"])]) 
-            # for chat_message in raw_contents]
     contents = [Content(role=chat_message.get("role"), parts=[Part.from_text(chat_message.get("content"))]) 
             for chat_message in chat_messages if not chat_message.get("loading") and chat_message.get("status") == "success"]
     app.logger.info(f"{event_id}: {len(contents)} contents are used")

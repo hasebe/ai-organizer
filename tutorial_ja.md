@@ -168,7 +168,7 @@ Firestore は NoSQL データベースの一つで、データをドキュメン
 (cd tf/ && terraform apply -target=google_firestore_database.default -target=google_firebaserules_ruleset.firestore -target=google_firebaserules_release.firestore -var="project_id=$GOOGLE_CLOUD_PROJECT" -auto-approve)
 ```
 
-### セキュリティについて
+### **セキュリティについて**
 
 クライアントから直接操作ができるということは、正しいセキュリティの設定をしておかないと、誰でもデータの閲覧、上書きができてしまうということになります。
 
@@ -191,7 +191,7 @@ Firestore と同様に Cloud Storage for Firebase では**クライアントか�
 (cd tf/ && terraform apply -target=google_app_engine_application.default -target=google_firebase_storage_bucket.default -target=google_firebaserules_ruleset.storage -target=google_firebaserules_release.storage -var="project_id=$GOOGLE_CLOUD_PROJECT" -auto-approve)
 ```
 
-### セキュリティについて
+### **セキュリティについて**
 
 セキュリティについても Firestore と同様、クライアントから直接操作する関係上、設定が必須となります。
 
@@ -250,7 +250,7 @@ gcloud run deploy ai-organizer \
 - ソースの削除をトリガーに、インデックスからソースを削除
 - ユーザーからの質問をトリガーに、インデックスを利用して回答を生成
 
-今回は、GenAI backend も個別の Cloud Run サービスでデプロイし、UI を担当する ai-organizer と連携させるようにします。
+今回は、GenAI backend も個別の Cloud Run サービスでデプロイし、UI を担当する AI organizer と連携させるようにします。
 
 ## **GenAI backend のデプロイ**
 
@@ -296,7 +296,7 @@ gcloud run deploy genai-backend \
 
 AI organizer には生成 AI 関連の機能が入っていないため、アプリケーション全体として機能しない状態です。
 
-生成 AI 関連の処理は少し時間がかかるものが多いため、本ハンズオンでは生成 AI の処理を GenAI backend に切り出し、非同期で処理するようにします。
+**生成 AI 関連の処理は少し時間がかかるものが多い**ため、本ハンズオンでは生成 AI の処理を GenAI backend に切り出し、非同期で処理するようにします。
 
 また今回のアーキテクチャのポイントですが、**非同期の連携はサービス同士が直接連携する形ではなく、データストアへの操作をトリガーに連携**します。
 
@@ -415,19 +415,58 @@ for SUBSCRIPTION in $SUBSCRIPTIONS; do
 done
 ```
 
+## **ソースデータに基づいた回答生成**
+
+ソースデータに基づいた回答生成は RAG というテクニックを [LlamaIndex on Vertex AI for RAG](https://cloud.google.com/vertex-ai/generative-ai/docs/llamaindex-on-vertexai) を利用して実現しています。
+
+ここでは具体的なソースコードを見ながら、詳細な処理を確認します。
+
+RAG は一般的に大きくデータを準備する前処理と、質問への回答を生成する処理の 2 つに分かれています。
+
+データを準備する前処理は以下の手順で行われます。
+
+1. データの取り込み
+1. データの変換
+1. エンべディング化
+1. データのインデックス化
+
+上記の一連の手続きがソースコードでは<walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="113" endLine="119" startCharacterOffset="4" endCharacterOffset="5">こちら</walkthrough-editor-select-line>に該当します。
+
+質問への回答生成は以下の手順で行われ、ソースコードの該当箇所を示します。
+
+1. <walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="171" endLine="184" startCharacterOffset="4" endCharacterOffset="5">質問に関連するデータをインデックスから取得</walkthrough-editor-select-line>
+1. <walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="186" endLine="190" startCharacterOffset="4" endCharacterOffset="5">インデックスから取得したデータと質問を合わせて回答を生成</walkthrough-editor-select-line>
+
+## **マルチターンの質問回答**
+
+過去の質問内容、回答内容を踏まえた質問回答 (マルチターンの質問回答) を生成するには、生成 AI に対して現在の質問に加えて、今までのやり取りも合わせて送る必要があります。
+
+つまり生成 AI は今までのやり取りを記憶しているわけではなく、プログラム側で対応が必要になります。
+
+今回のプログラムでは Firestore に質問と回答の履歴を持つようにし、質問を投げたときに履歴すべてを質問に合わせて送るようにしています。
+
+具体的な処理部分を以下に示します。
+
+- <walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="192" endLine="198" startCharacterOffset="4" endCharacterOffset="5">過去の履歴を取得</walkthrough-editor-select-line>
+- <walkthrough-editor-select-line filePath="./next-tokyo-assets/genai-app-patterns/src/genai-backend/main.py" startLine="206" endLine="206" startCharacterOffset="8" endCharacterOffset="65">過去の履歴を含め質問を送信</walkthrough-editor-select-line>
+
 ## **AI organizer の試用**
 
 ### **1. アプリケーションへブラウザからアクセス**
 
-前のコマンドで出力された `Service URL` or `Service_URL` から URL をクリックすると、ブラウザのタブが開きチャットアプリケーションが起動します。
+以下コマンドを実行して出力された `Service URL` から URL をクリックすると、ブラウザのタブが開きログイン画面が起動します。
+
+```bash
+gcloud run services describe ai-organizer --region asia-northeast1 --format json | jq -r '.status.address.url'
+```
 
 ### **2. 新規ユーザーの登録**
 
-最下部の `アカウントを登録する` をクリックし、ユーザー情報を入力、`登録 / Register` をクリックします。
+最下部の `アカウントを登録する` をクリックし、ユーザー情報を入力、`アカウントを登録する` をクリックします。
 
-うまく登録ができると、ファイル管理画面に遷移します。
+うまく登録ができると、ノートブック管理画面に遷移します。ユーザーの初期化のため少し待ち時間があります。
 
-### **3. 色々な機能の試用**
+### **3. 新規ノートブックの作成**
 
 - `新規` ボタンから新しいフォルダの作成、ローカルにあるファイルのアップロードが可能です。
 - 右上の `アバター` マークをクリックするとログアウトが可能です。
