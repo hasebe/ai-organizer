@@ -75,7 +75,8 @@ teachme tutorial_ja.md
 ## **Google Cloud 環境設定**
 
 Google Cloud では利用したい機能（API）ごとに、有効化を行う必要があります。
-ここでは、以降のハンズオンで利用する機能を事前に有効化しておきます。
+
+ここで、以降のハンズオンで利用する機能を事前に有効化しておきます。
 
 ```bash
 gcloud services enable \
@@ -103,28 +104,32 @@ AI organizer では、ユーザー情報は [Firebase Authentication](https://fi
 **GUI** から Firebase を有効化します。
 
 1. [Firebase コンソール](https://console.firebase.google.com/) にブラウザからアクセスします。
-1. `プロジェクトを作成` または `プロジェクトを追加` ボタンをクリックします。
-1. プロジェクトの作成 (手順 1/4)
-
-   `プロジェクト名を入力` のところから作成済みの Google Cloud プロジェクトを選択します。次に 規約への同意、利用目的のチェックマークを入れ、`続行` をクリックします。
+1. `プロジェクトを作成` ボタンをクリックします。
+1. 最下部の `Cloud プロジェクトに Firebase を追加` をクリックします。
+1. `Google Cloud プロジェクトを選択する` から qwiklabs で利用しているプロジェクトを選択します。
+1. 規約への同意、利用目的のチェックマークを入れ、`続行` をクリックします。
 
    料金確認画面が表示された場合は、`プランを確認` ボタンをクリックします。
 
-1. プロジェクトの作成 (手順 2/4)
+1. Google Cloud プロジェクトに Firebase を追加する際に注意すべき点
 
    `続行` をクリックします。
 
-1. プロジェクトの作成 (手順 3/3)
+1. Google アナリティクス（Firebase プロジェクト向け）
 
    `このプロジェクトで Google アナリティクスを有効にする` をオフにし、`Firebase を追加` をクリックします。
 
-1. `新しいプロジェクトの準備ができました` と表示されたら `続行` をクリックします。
+1. `Firebase プロジェクトが準備できました` と表示されたら `続行` をクリックします。
 
-### **2. アプリケーション設定のショートカット**
+### **2. Terraform の初期化**
 
-以下のコマンドを実行することで、**ここからステップ 11 までに手動で実行する各種設定をショートカット**することが可能です。生成 AI 関連の機能を中心に学習したい方は、こちらのコマンドを実行して下さい。完了まで 10 分弱かかります。
+本ハンズオンではいくつかの設定を作成済みの Terraform スクリプトを利用します。
 
-コマンドの途中で進めるかどうか確認されますので `yes` と入力して進めてください。
+そのために Terraform 実行環境を初期化します。
+
+```bash
+(cd tf/ && terraform init)
+```
 
 ```bash
 (cd tf/; terraform init && terraform apply -var="project_id=$GOOGLE_CLOUD_PROJECT")
@@ -152,134 +157,29 @@ firebase apps:create -P $GOOGLE_CLOUD_PROJECT WEB ai-organizer
 
 ## **Firebase Authentication の設定**
 
-**GUI** から Firebase Authentication を有効化します。
-
-1. 以下のコマンドで出力された URL にブラウザからアクセスします。
-
-   ```bash
-   echo "https://console.firebase.google.com/project/$GOOGLE_CLOUD_PROJECT/overview?hl=ja"
-   ```
-
-1. `Authentication` カードをクリックします。
-1. `始める` ボタンをクリックします。
-1. ネイティブのプロバイダから `メール / パスワード` をクリックします。
-1. メール / パスワードの `有効にする` をクリックし、有効化します。
-1. `保存` ボタンをクリックします。
-1. メール / パスワードのプロバイダに有効のチェックが付いていることを確認します。
+```bash
+(cd tf/ && terraform apply -target=google_identity_platform_config.default -var="project_id=$GOOGLE_CLOUD_PROJECT" -auto-approve)
+```
 
 ## **Firestore データベース、セキュリティルールの設定**
 
-### **1. Firestore データベースの作成**
-
-データストアとして利用する Firestore を東京リージョンに作成します。
-
 ```bash
-gcloud firestore databases create --location asia-northeast1
-```
-
-### **2. Firestore を操作するための CLI の初期化**
-
-```bash
-firebase init firestore -P $GOOGLE_CLOUD_PROJECT
-```
-
-2 つプロンプトが出ますが両方とも `Enter` を押しデフォルト設定を採用します。
-
-### **3. セキュリティルール設定ファイルを上書き**
-
-**注**: 以下のコマンドはコピー&ペーストで実行してください。
-
-```shell
-cat << EOF > firestore.rules
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read: if request.auth != null
-                  && request.auth.uid == userId;
-      match /items/{itemId} {
-        allow read, write: if request.auth != null
-                           && request.auth.uid == userId;
-      }
-    }
-  }
-}
-EOF
-```
-
-### **4. 更新したセキュリティルール、インデックスをデプロイ**
-
-```bash
-firebase deploy --only firestore -P $GOOGLE_CLOUD_PROJECT
+(cd tf/ && terraform apply -target=google_firestore_database.default -target=google_firebaserules_ruleset.firestore -target=google_firebaserules_release.firestore -var="project_id=$GOOGLE_CLOUD_PROJECT" -auto-approve)
 ```
 
 ## **Cloud Storage for Firebase、セキュリティルールの設定**
 
-### **1. Firebase のデフォルトロケーションの設定**
-
-**GUI** からデフォルトロケーションを設定します。
-
-1. 以下のコマンドで出力された URL にブラウザからアクセスします。
-
-   ```bash
-   echo "https://console.firebase.google.com/project/$GOOGLE_CLOUD_PROJECT/overview?hl=ja"
-   ```
-
-1. 左メニュー上部のプロジェクトの概要右の `歯車マーク`、`プロジェクトの設定` の順にクリックします。
-1. `全般` タブが選択されていることを確認します。
-1. `デフォルトの GCP リソース ロケーション` の鉛筆マークをクリックします。
-1. `asia-northeast1` が選択されていることを確認し、`完了` をクリックします。
-
-### **2. Cloud Storage を利用するための CLI の初期化**
-
-ファイルのストレージとして利用する Cloud Storage の CLI を設定します。
-
 ```bash
-firebase init storage -P $GOOGLE_CLOUD_PROJECT
-```
-
-1 つプロンプトが出ますが `Enter` を押しデフォルト設定を採用します。
-
-### **3. セキュリティルール設定ファイルを上書き**
-
-**注**: 以下のコマンドはコピー&ペーストで実行してください。
-
-```shell
-cat << EOF > storage.rules
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /files/{userId}/{itemId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
-    }
-  }
-}
-EOF
-```
-
-### **4. 更新したセキュリティルールをデプロイ**
-
-```bash
-firebase deploy --only storage -P $GOOGLE_CLOUD_PROJECT
+(cd tf/ && terraform apply -target=google_app_engine_application.default -target=google_firebase_storage_bucket.default -target=google_firebaserules_ruleset.storage -target=google_firebaserules_release.storage -var="project_id=$GOOGLE_CLOUD_PROJECT" -auto-approve)
 ```
 
 ## **AI organizer をデプロイするための事前設定**
 
 Cloud Run では様々な方法でデプロイが可能です。ここでは以下の方法でアプリケーションをデプロイします。
 
-- Dockerfile を利用して、Cloud Build でコンテナイメージを作成。作成したコンテナイメージを Cloud Run にデプロイ
+- Dockerfile を利用して、ソースファイルから 1 コマンドで Cloud Run にデプロイ
 
-### **1. Docker リポジトリ (Artifact Registry) の作成**
-
-```bash
-gcloud artifacts repositories create ai-organizer-repo \
-  --repository-format docker \
-  --location asia-northeast1 \
-  --description "Docker repository for AI organizer"
-```
-
-### **2. サービスアカウントの作成**
+### **1. サービスアカウントの作成**
 
 デフォルトでは Cloud Run にデプロイされたアプリケーションは強い権限を持ちます。最小権限の原則に従い、必要最小限の権限を持たせるため、まずサービス用のアカウントを作成します。
 
@@ -287,7 +187,7 @@ gcloud artifacts repositories create ai-organizer-repo \
 gcloud iam service-accounts create ai-organizer-sa
 ```
 
-### **3. サービスアカウントへの権限追加**
+### **2. サービスアカウントへの権限追加**
 
 AI organizer は認証情報の操作、Firestore の読み書き権限が必要です。先程作成したサービスアカウントに権限を付与します。
 
@@ -305,13 +205,12 @@ gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
 Cloud Build でコンテナイメージを作成、作成したイメージを Cloud Run にデプロイします。
 
 ```bash
-gcloud builds submit ./src/ai-organizer \
-  --tag asia-northeast1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/ai-organizer-repo/ai-organizer && \
 gcloud run deploy ai-organizer \
-  --image asia-northeast1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/ai-organizer-repo/ai-organizer \
+  --source ./src/ai-organizer \
   --service-account ai-organizer-sa@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
   --allow-unauthenticated \
-  --region asia-northeast1
+  --region asia-northeast1 \
+  --quiet
 ```
 
 **注**: デプロイ完了まで 5 分程度かかります。
